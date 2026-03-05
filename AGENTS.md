@@ -111,12 +111,12 @@ git push origin main --force-with-lease
 
 ## Installation
 
-Install as OpenClaw skills (symlink or copy to `~/.chad/skills/` or project `.openclaw/skills/`):
+Install as OpenClaw skills (symlink or copy to `~/.openclaw/skills/` or project `.openclaw/skills/`):
 
 ```bash
 # Symlink all skills
-ln -s ~/development/com.nicospencer/superpowers/skills ~/.chad/skills/superpowers
+ln -s /path/to/superpowers/skills ~/.openclaw/skills/superpowers
 
 # Or install individual skills
-ln -s ~/development/com.nicospencer/superpowers/skills/brainstorming ~/.chad/skills/brainstorming
+ln -s /path/to/superpowers/skills/brainstorming ~/.openclaw/skills/brainstorming
 ```
