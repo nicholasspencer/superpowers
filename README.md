@@ -12,33 +12,31 @@ Skills trigger automatically via OpenClaw's description matching — no manual i
 ## Installation
 
 ```bash
-# Symlink all skills
 ln -s /path/to/superpowers/skills ~/.openclaw/skills/superpowers
-
-# Or install individual skills
-ln -s /path/to/superpowers/skills/brainstorming ~/.openclaw/skills/brainstorming
 ```
 
 Skills can also be placed in a project's `.openclaw/skills/` directory.
 
 ## Available Skills
 
+Skills marked with **\*** have been adapted for OpenClaw.
+
 | Skill | Description |
 |-------|-------------|
-| **brainstorming** | Design-before-code workflow with collaborative refinement |
-| **writing-plans** | Bite-sized implementation plans with TDD steps |
-| **executing-plans** | Batch execution with review checkpoints |
-| **subagent-driven-development** | Per-task subagent dispatch with two-stage review |
+| **brainstorming\*** | Design-before-code workflow with collaborative refinement |
+| **writing-plans\*** | Bite-sized implementation plans with TDD steps |
+| **executing-plans\*** | Batch execution with review checkpoints |
+| **subagent-driven-development\*** | Per-task subagent dispatch with two-stage review |
 | **test-driven-development** | Red-green-refactor cycle enforcement |
-| **systematic-debugging** | Four-phase root cause investigation |
+| **systematic-debugging\*** | Four-phase root cause investigation |
 | **verification-before-completion** | Evidence before claims, always |
-| **requesting-code-review** | Pre-merge review dispatch |
-| **receiving-code-review** | Handling review feedback with technical rigor |
-| **dispatching-parallel-agents** | Concurrent independent task execution |
-| **using-git-worktrees** | Isolated workspace creation and management |
+| **requesting-code-review\*** | Pre-merge review dispatch |
+| **receiving-code-review\*** | Handling review feedback with technical rigor |
+| **dispatching-parallel-agents\*** | Concurrent independent task execution |
+| **using-git-worktrees\*** | Isolated workspace creation and management |
 | **finishing-a-development-branch** | Merge/PR/discard workflow |
-| **writing-skills** | How to create and test new skills |
-| **using-superpowers** | Meta-skill: how skills trigger and compose |
+| **writing-skills\*** | How to create and test new skills |
+| **using-superpowers\*** | Meta-skill: how skills trigger and compose |
 
 ## Documentation
 
