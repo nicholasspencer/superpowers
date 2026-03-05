@@ -1,76 +1,77 @@
 ---
 name: using-superpowers
-description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+description: Use when starting any conversation - establishes that skills are mandatory workflows loaded automatically by the system via description matching
 ---
 
 <EXTREMELY-IMPORTANT>
-If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+If a skill's description matches what you are doing, you MUST follow it.
 
 IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
 
 This is not negotiable. This is not optional. You cannot rationalize your way out of this.
 </EXTREMELY-IMPORTANT>
 
-## How to Access Skills
+## How Skills Work in OpenClaw
 
-**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
-
-**In other environments:** Check your platform's documentation for how skills are loaded.
+Skills are loaded automatically by the system when their descriptions match the current task. You don't need to invoke or load them — they appear in your `<available_skills>` context. When a skill applies, follow it directly.
 
 # Using Skills
 
 ## The Rule
 
-**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+**Follow relevant skills BEFORE any response or action.** Skills are mandatory workflows, not optional suggestions. If a skill's description matches your task, follow it completely.
 
 ```dot
 digraph skill_flow {
     "User message received" [shape=doublecircle];
-    "About to EnterPlanMode?" [shape=doublecircle];
-    "Already brainstormed?" [shape=diamond];
-    "Invoke brainstorming skill" [shape=box];
-    "Might any skill apply?" [shape=diamond];
-    "Invoke Skill tool" [shape=box];
+    "Does any skill's description match?" [shape=diamond];
     "Announce: 'Using [skill] to [purpose]'" [shape=box];
     "Has checklist?" [shape=diamond];
-    "Create TodoWrite todo per item" [shape=box];
+    "Track tasks (beads or inline)" [shape=box];
     "Follow skill exactly" [shape=box];
     "Respond (including clarifications)" [shape=doublecircle];
 
-    "About to EnterPlanMode?" -> "Already brainstormed?";
-    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
-    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
-    "Invoke brainstorming skill" -> "Might any skill apply?";
-
-    "User message received" -> "Might any skill apply?";
-    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
-    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
-    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "User message received" -> "Does any skill's description match?";
+    "Does any skill's description match?" -> "Announce: 'Using [skill] to [purpose]'" [label="yes"];
+    "Does any skill's description match?" -> "Respond (including clarifications)" [label="definitely not"];
     "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
-    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Track tasks (beads or inline)" [label="yes"];
     "Has checklist?" -> "Follow skill exactly" [label="no"];
-    "Create TodoWrite todo per item" -> "Follow skill exactly";
+    "Track tasks (beads or inline)" -> "Follow skill exactly";
 }
 ```
 
+### Task Tracking
+
+When a skill has a checklist, detect available tracking:
+- If `.beads/` exists in the project or `bd` is on PATH → use beads:
+  - `bd create -t "Task N: description" -p medium` to create
+  - `bd start <id>` when beginning work
+  - `bd close <id>` when complete
+- Otherwise → track inline in the plan markdown:
+  - `- [ ] Task N: description` → `- [x] Task N: description`
+
+### Subagent Dispatch
+
+When a skill calls for dispatching subagents, use `sessions_spawn`:
+- `runtime: "acp"` for coding tasks that need file access
+- `mode: "run"` for one-shot tasks (implement, review)
+- Include full task context in the `task` parameter (don't make subagent read files)
+- Set `workdir` to the project directory
+
 ## Red Flags
 
-These thoughts mean STOP—you're rationalizing:
+These thoughts mean STOP — you're rationalizing:
 
 | Thought | Reality |
 |---------|---------|
-| "This is just a simple question" | Questions are tasks. Check for skills. |
-| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "This is just a simple question" | Questions are tasks. Check for matching skills. |
 | "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
-| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
-| "Let me gather information first" | Skills tell you HOW to gather information. |
-| "This doesn't need a formal skill" | If a skill exists, use it. |
-| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't need a formal skill" | If a skill matches, use it. |
 | "This doesn't count as a task" | Action = task. Check for skills. |
 | "The skill is overkill" | Simple things become complex. Use it. |
 | "I'll just do this one thing first" | Check BEFORE doing anything. |
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
-| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
 
 ## Skill Priority
 
