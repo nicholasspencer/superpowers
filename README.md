@@ -11,27 +11,20 @@ Skills trigger automatically via OpenClaw's description matching — no manual i
 
 ## Installation
 
-Link each skill individually into your OpenClaw skills directory:
+Link each skill into your OpenClaw skills directory:
 
 ```bash
 # Link all superpowers skills
 SUPERPOWERS=/path/to/superpowers/skills
 for skill in "$SUPERPOWERS"/*/; do
-  ln -sf "$skill" ~/.chad/skills/$(basename "$skill")
+  ln -sf "$skill" ~/.openclaw/skills/$(basename "$skill")
 done
-```
-
-Or install specific skills:
-
-```bash
-ln -sf /path/to/superpowers/skills/brainstorming ~/.chad/skills/brainstorming
-ln -sf /path/to/superpowers/skills/systematic-debugging ~/.chad/skills/systematic-debugging
 ```
 
 Skills can also be placed in a project's `.openclaw/skills/` directory.
 
-> **Note:** OpenClaw expects skills directly under `~/.chad/skills/<name>/SKILL.md`.
-> A single parent symlink (e.g., `~/.chad/skills/superpowers → .../skills/`) won't work
+> **Note:** OpenClaw expects skills directly under `~/.openclaw/skills/<name>/SKILL.md`.
+> A single parent symlink (e.g., `~/.openclaw/skills/superpowers → .../skills/`) won't work
 > because it nests the SKILL.md files one level too deep.
 
 ## Available Skills
