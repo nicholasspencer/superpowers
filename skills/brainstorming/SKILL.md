@@ -23,12 +23,19 @@ Every project goes through this process. A todo list, a single-function utility,
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Explore project context** — check files, docs, recent commits
-2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>-design.md` and commit
-6. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+1. **Establish the bead** — every piece of work needs a bead:
+   - If a bead ID was provided → use it (`bd show <id>` to load context)
+   - If a bead clearly matches this work → `bd search` to find it, confirm with user
+   - If exploring an idea (uncertain scope) → create a wisp: `bd create -t "<topic>" --type=feature -p <priority> --ephemeral`
+   - If work is confirmed → create a permanent bead: `bd create -t "<topic>" --type=feature -p <priority>`
+   - Update type if needed: `bd update <id> -t <correct_type>`
+2. **Explore project context** — check files, docs, recent commits
+3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+4. **Propose 2-3 approaches** — with trade-offs and your recommendation
+5. **Present design** — in sections scaled to their complexity, get user approval after each section
+6. **Promote wisp if needed** — if the bead was a wisp and design is approved: `bd update <id> --persistent`
+7. **Write design doc** — save to `docs/{bead_id}/design.md`, update bead, and commit
+8. **Transition to implementation** — invoke writing-plans skill to create implementation plan (pass the bead ID)
 
 ## Process Flow
 
@@ -77,13 +84,19 @@ digraph brainstorming {
 
 ## After the Design
 
+**Wisp Promotion:**
+- If the bead was created as a wisp (exploratory), promote it now: `bd update <id> --persistent`
+- This signals the work has graduated from "exploring" to "building"
+
 **Documentation:**
-- Write the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
+- Write the validated design to `docs/{bead_id}/design.md`
+- Update the bead: `bd update <id> --notes="Design: docs/<id>/design.md"` and `bd update <id> --spec-id="docs/<id>/design.md"`
 - Follow the writing-clearly-and-concisely skill if available
 - Commit the design document to git
 
 **Implementation:**
 - Follow the writing-plans skill to create a detailed implementation plan
+- Pass the bead ID so the plan links to the same bead
 - Do NOT follow any other skill. writing-plans is the next step.
 
 ## Key Principles

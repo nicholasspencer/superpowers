@@ -23,10 +23,14 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 ### Task Tracking
 
-Detect available tracking:
+If writing-plans created child beads for each task (check the plan header for `Bead:` and task headings for `[bead-id]`), use those:
+- `bd update <child_id> --status=in_progress` when beginning work
+- `bd close <child_id>` when complete
+
+If no child beads exist, detect available tracking:
 - If `.beads/` exists in the project or `bd` is on PATH → use beads:
   - `bd create -t "Task N: description" -p medium` to create
-  - `bd start <id>` when beginning work
+  - `bd update <id> --status=in_progress` when beginning work
   - `bd close <id>` when complete
 - Otherwise → track inline in the plan markdown:
   - `- [ ] Task N: description` → `- [x] Task N: description`
@@ -39,6 +43,27 @@ For each task:
 2. Follow each step exactly (plan has bite-sized steps)
 3. Run verifications as specified
 4. Mark as completed
+
+### Refactor Tracking (RCA Traceability)
+
+When implementation reveals code that needs refactoring:
+
+1. **Don't refactor inline.** Create a new bead:
+   ```bash
+   bd create -t "Refactor: <what and why>" --type=task -p 3 --parent=<parent_bead_id>
+   bd update <refactor_id> --add-label refactor
+   bd update <refactor_id> --notes="Discovered during <parent_bead_id>, Task N. Reason: <why this needs refactoring>"
+   ```
+2. **Continue current work.** The refactor bead is tracked separately.
+3. **If the refactor blocks current work**, note it and stop the batch — surface to architect.
+
+This creates an audit trail: every refactor traces back to the bead where it was discovered, enabling RCA when the workflow produces unexpected results.
+
+To review all refactors born from a piece of work:
+```bash
+bd children <parent_bead_id>
+bd list --label=refactor
+```
 
 ### Step 3: Report
 When batch complete:

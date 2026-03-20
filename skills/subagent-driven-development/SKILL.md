@@ -196,6 +196,24 @@ Done!
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)
 
+## Refactor Tracking (RCA Traceability)
+
+When an implementer subagent identifies code needing refactoring:
+
+1. **Implementer reports it** — subagent surfaces "this needs refactoring" in its output
+2. **Controller creates the bead:**
+   ```bash
+   bd create -t "Refactor: <what and why>" --type=task -p 3 --parent=<parent_bead_id>
+   bd update <refactor_id> --add-label refactor
+   bd update <refactor_id> --notes="Discovered during <parent_bead_id>, Task N. Reason: <why>"
+   ```
+3. **Don't dispatch a refactor subagent mid-flow.** Log it and continue.
+4. **After all tasks complete**, surface pending refactor beads to architect before finishing:
+   ```bash
+   bd children <parent_bead_id>
+   bd list --label=refactor --status=open
+   ```
+
 ## Red Flags
 
 **Never:**

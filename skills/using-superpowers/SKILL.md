@@ -44,9 +44,10 @@ digraph skill_flow {
 ### Task Tracking
 
 When a skill has a checklist, detect available tracking:
+- If a bead ID was passed from a prior skill (e.g., brainstorming → writing-plans), use it as the parent and look for existing child beads
 - If `.beads/` exists in the project or `bd` is on PATH → use beads:
   - `bd create -t "Task N: description" -p medium` to create
-  - `bd start <id>` when beginning work
+  - `bd update <id> --status=in_progress` when beginning work
   - `bd close <id>` when complete
 - Otherwise → track inline in the plan markdown:
   - `- [ ] Task N: description` → `- [x] Task N: description`

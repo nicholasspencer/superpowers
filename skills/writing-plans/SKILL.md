@@ -15,7 +15,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+**Save plans to:** `docs/{bead_id}/plan.md` (bead ID from brainstorming, or establish one now — see Bead Linkage below)
 
 ## Bite-Sized Task Granularity
 
@@ -35,6 +35,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 > **REQUIRED:** Follow the executing-plans skill to implement this plan task-by-task.
 
+**Bead:** `{bead_id}`
 **Goal:** [One sentence describing what this builds]
 
 **Architecture:** [2-3 sentences about approach]
@@ -87,12 +88,35 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+## Bead Linkage
+
+After saving the plan, link everything to the bead:
+
+1. **Establish the bead** (if not passed from brainstorming):
+   - If a bead ID was provided → use it
+   - If a bead clearly matches this work → `bd search` to find it, confirm with user
+   - If no bead exists → `bd create -t "<feature>" --type=task -p <priority>`
+2. **Update the parent bead:**
+   ```bash
+   bd update <id> --notes="Plan: docs/<id>/plan.md"
+   bd update <id> --spec-id="docs/<id>/plan.md"
+   ```
+3. **Create child beads for each plan task:**
+   ```bash
+   bd create -t "Task 1: <description>" -p <priority> --type=task --parent=<bead_id>
+   ```
+4. **Add child bead IDs to the plan doc** next to each task heading:
+   ```markdown
+   ### Task 1: Component Name [`child-bead-id`]
+   ```
+
 ## Remember
 - Exact file paths always
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+- All docs go in `docs/{bead_id}/` — design, plan, and any supporting artifacts
 
 ## Execution Handoff
 
