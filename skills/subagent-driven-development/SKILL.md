@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching persistent implementer sessions per task, with two-stage review after each: spec compliance first, then code quality. Implementers stay alive for review feedback — no cold-start fix agents.
+Execute plan by dispatching one-shot implementer subagents per task, with external review gates before bead closure. Implementers build and self-review; external reviewers verify independently. Beads track the full lifecycle.
 
-**Core principle:** Persistent implementer + one-shot reviewers + warm-context fix loop = high quality, fast iteration
+**Core principle:** One-shot implementers + external review gates + bead state dimensions = reliable, channel-agnostic orchestration
 
 ## When to Use
 
@@ -31,8 +31,8 @@ digraph when_to_use {
 
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
-- Persistent implementer per task (warm context for fixes)
-- Two-stage review after each task: spec compliance first, then code quality
+- External review gates per task (not just self-review)
+- Bead state dimensions track lifecycle across session boundaries
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -43,49 +43,44 @@ digraph process {
 
     subgraph cluster_per_task {
         label="Per Task";
-        "Spawn implementer session (mode: session, label: impl-task-N)" [shape=box];
-        "Implementer asks questions?" [shape=diamond];
-        "Answer questions via sessions_send" [shape=box];
-        "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" [shape=box];
+        "Spawn implementer (mode: run)" [shape=box];
+        "Implementer builds, tests, commits, self-reviews" [shape=box];
+        "Implementer sets review:pending, reports back" [shape=box];
         "Task complexity?" [shape=diamond];
-        "Controller spot-checks (skeleton/config tasks)" [shape=box];
+        "Controller spot-checks (simple tasks)" [shape=box];
         "Spawn spec reviewer (mode: run)" [shape=box];
-        "Spec reviewer confirms code matches spec?" [shape=diamond];
-        "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" [shape=box];
+        "Spec passes?" [shape=diamond];
+        "Spawn fix implementer with findings" [shape=box];
         "Spawn code quality reviewer (mode: run)" [shape=box];
-        "Code quality reviewer approves?" [shape=diamond];
-        "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" [shape=box];
-        "Kill implementer session" [shape=box];
-        "Mark task complete" [shape=box];
+        "Quality passes?" [shape=diamond];
+        "Spawn fix implementer with quality findings" [shape=box];
+        "Controller sets review:passed, closes bead" [shape=box];
     }
 
-    "Read plan, extract all tasks with full text, note context, track tasks" [shape=box];
+    "Read plan, extract all tasks, create beads" [shape=box];
     "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
+    "Dispatch final code reviewer for entire implementation" [shape=box];
     "Follow finishing-a-development-branch skill" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, track tasks" -> "Spawn implementer session (mode: session, label: impl-task-N)";
-    "Spawn implementer session (mode: session, label: impl-task-N)" -> "Implementer asks questions?";
-    "Implementer asks questions?" -> "Answer questions via sessions_send" [label="yes"];
-    "Answer questions via sessions_send" -> "Implementer asks questions?" [label="wait for response"];
-    "Implementer asks questions?" -> "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" [label="no"];
-    "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" -> "Task complexity?";
-    "Task complexity?" -> "Controller spot-checks (skeleton/config tasks)" [label="simple"];
+    "Read plan, extract all tasks, create beads" -> "Spawn implementer (mode: run)";
+    "Spawn implementer (mode: run)" -> "Implementer builds, tests, commits, self-reviews";
+    "Implementer builds, tests, commits, self-reviews" -> "Implementer sets review:pending, reports back";
+    "Implementer sets review:pending, reports back" -> "Task complexity?";
+    "Task complexity?" -> "Controller spot-checks (simple tasks)" [label="simple"];
     "Task complexity?" -> "Spawn spec reviewer (mode: run)" [label="complex"];
-    "Controller spot-checks (skeleton/config tasks)" -> "Mark task complete";
-    "Spawn spec reviewer (mode: run)" -> "Spec reviewer confirms code matches spec?";
-    "Spec reviewer confirms code matches spec?" -> "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" [label="no"];
-    "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" -> "Spawn spec reviewer (mode: run)" [label="re-review"];
-    "Spec reviewer confirms code matches spec?" -> "Spawn code quality reviewer (mode: run)" [label="yes"];
-    "Spawn code quality reviewer (mode: run)" -> "Code quality reviewer approves?";
-    "Code quality reviewer approves?" -> "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" [label="no"];
-    "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" -> "Spawn code quality reviewer (mode: run)" [label="re-review"];
-    "Code quality reviewer approves?" -> "Kill implementer session" [label="yes"];
-    "Kill implementer session" -> "Mark task complete";
-    "Mark task complete" -> "More tasks remain?";
-    "More tasks remain?" -> "Spawn implementer session (mode: session, label: impl-task-N)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Follow finishing-a-development-branch skill";
+    "Controller spot-checks (simple tasks)" -> "Controller sets review:passed, closes bead";
+    "Spawn spec reviewer (mode: run)" -> "Spec passes?";
+    "Spec passes?" -> "Spawn fix implementer with findings" [label="no"];
+    "Spawn fix implementer with findings" -> "Spawn spec reviewer (mode: run)" [label="re-review"];
+    "Spec passes?" -> "Spawn code quality reviewer (mode: run)" [label="yes"];
+    "Spawn code quality reviewer (mode: run)" -> "Quality passes?";
+    "Quality passes?" -> "Spawn fix implementer with quality findings" [label="no"];
+    "Spawn fix implementer with quality findings" -> "Spawn code quality reviewer (mode: run)" [label="re-review"];
+    "Quality passes?" -> "Controller sets review:passed, closes bead" [label="yes"];
+    "Controller sets review:passed, closes bead" -> "More tasks remain?";
+    "More tasks remain?" -> "Spawn implementer (mode: run)" [label="yes"];
+    "More tasks remain?" -> "Dispatch final code reviewer for entire implementation" [label="no"];
+    "Dispatch final code reviewer for entire implementation" -> "Follow finishing-a-development-branch skill";
 }
 ```
 
@@ -93,43 +88,74 @@ digraph process {
 
 ```
 1. Controller creates bead for task (if not already created from plan)
-2. Spawn implementer (mode: "session", label: "impl-task-N")
-   — pass bead ID in prompt so implementer can claim + close it
-3. Implementer claims bead, builds, self-reviews, reports "READY FOR REVIEW"
-4. Assess task complexity:
-   - Simple (skeleton, config, boilerplate) → controller spot-checks, skip to step 8
-   - Complex (logic, integrations, algorithms) → continue to step 5
-5. Spawn spec reviewer (mode: "run") — reads actual code, returns findings
-6. If issues → sessions_send(label: "impl-task-N", message: findings)
-   → implementer fixes (warm context), reports "READY FOR RE-REVIEW"
-   → re-spawn spec reviewer → repeat until ✅
-7. Spawn code quality reviewer (mode: "run") → same loop if issues
-8. Both pass (or spot-check sufficient) → tell implementer "APPROVED"
-   → implementer closes its bead, controller kills the session
-9. Move to next task
+2. Spawn implementer (mode: "run")
+   — pass bead ID in prompt so implementer can claim it and set review state
+3. Implementer claims bead, builds, self-reviews, commits
+4. Implementer sets `bd set-state <id> review=pending` and reports back
+   — implementer does NOT close the bead
+5. Assess task complexity:
+   - Simple (skeleton, config, boilerplate) → controller spot-checks, skip to step 9
+   - Complex (logic, integrations, algorithms) → continue to step 6
+6. Controller verifies the commit SHA from the report exists: `git log --oneline | head -5`
+7. Spawn spec reviewer (mode: "run") — reads actual code, returns findings
+8. If issues:
+   - Controller sets `bd set-state <id> review=failed --reason "spec issues"`
+   - Spawn NEW fix implementer (mode: "run") with findings baked into prompt
+   - Fix implementer picks up the same bead (still in_progress), fixes, commits
+   - Fix implementer sets review=pending again → re-spawn spec reviewer → repeat
+9. Spec passes → spawn code quality reviewer (mode: "run") → same loop if issues
+10. Both pass (or spot-check sufficient):
+    - Controller sets `bd set-state <id> review=passed`
+    - Controller closes the bead: `bd close <id>`
+11. Move to next task
 ```
 
-## Bead Ownership & Orchestration State
+## Bead Ownership & Review State
 
 **Beads ARE the orchestration state.** No separate checkpoint files needed.
 
-**Rule: whoever claims the bead closes it.**
+### State Dimensions
 
-- Controller creates beads from the plan (has full plan context)
-- Controller passes bead ID to implementer in the task prompt
-- Implementer claims the bead (`bd claim`) at start of work
-- Implementer closes the bead (`bd close`) after receiving "APPROVED"
-- This ensures bead state survives controller session boundaries
+Beads use the `review` state dimension to track the review lifecycle:
 
-**Session recovery:** If the controller session dies/compacts mid-epic, any new session can pick up where things left off:
+| State | Meaning | Set by |
+|-------|---------|--------|
+| `review:pending` | Implementer finished, awaiting external review | Implementer |
+| `review:passed` | External review approved | Controller |
+| `review:failed` | External review found issues | Controller |
+
+### Ownership Rules
+
+| Action | Owner | Why |
+|--------|-------|-----|
+| Create bead | Controller | Has full plan context |
+| Claim bead (`in_progress`) | Implementer | Signals "I'm working on this" |
+| Set `review:pending` | Implementer | Signals "my work is done, review me" |
+| Set `review:passed` | Controller | Only after external review approves |
+| Set `review:failed` | Controller | When external review finds issues |
+| Close bead | Controller | Only after `review:passed` |
+
+**Why the controller closes the bead (not the implementer):**
+The implementer can't be both author and final approver. External review is a gate — the bead stays `in_progress` until an independent reviewer confirms the work. This prevents "done before verified" states.
+
+### Session Recovery
+
+If the controller session dies/compacts mid-epic, any new session picks up:
+
 ```bash
-bd list                           # see what's done, in-progress, and open
-bd list --status=open             # find next tasks to dispatch
-bd children <epic_id>             # see full task breakdown
+bd list                               # what's done, in-progress, open
+bd list --status=in_progress          # what's being worked on
+bd state <id> review                  # where in the review cycle
+bd list --status=open                 # find next tasks to dispatch
+bd children <epic_id>                 # see full task breakdown
 ```
-The beads backlog tells you everything: what's closed (done), what's claimed (in-progress), what's open with resolved deps (ready to dispatch). No orchestration memory needed beyond `bd list`.
 
-**Why persistent sessions matter:** The implementer keeps its warm context — it knows the codebase, the task, the decisions it made. When review findings come in, it makes targeted fixes without re-reading everything or guessing at what a previous agent built.
+The beads backlog + review state dimension tells you everything:
+- `closed` → done and verified
+- `in_progress` + `review:pending` → needs external review
+- `in_progress` + `review:failed` → needs fix implementer
+- `in_progress` + no review state → implementer still working (or died mid-work)
+- `open` with resolved deps → ready to dispatch
 
 ## Task Complexity Heuristics
 
@@ -154,7 +180,8 @@ The controller is empowered to make this judgment call. When in doubt, run the f
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent (persistent session)
+- `./implementer-prompt.md` - Dispatch implementer subagent (one-shot, sets review:pending)
+- `./fix-implementer-prompt.md` - Dispatch fix implementer with review findings (one-shot)
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent (one-shot)
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent (one-shot)
 
@@ -165,61 +192,69 @@ You: I'm using Subagent-Driven Development to execute this plan.
 
 [Read plan file once: docs/plans/feature-plan.md]
 [Extract all 5 tasks with full text and context]
-[Track all tasks (beads if available, otherwise inline)]
+[Create beads for all tasks]
 
 Task 1: Project skeleton (SIMPLE — spot-check only)
 
-[Spawn implementer: sessions_spawn(mode: "session", label: "impl-task-1")]
-Implementer: [No questions, proceeds]
+[Spawn implementer: sessions_spawn(mode: "run")]
 Implementer:
+  - Claimed bead
   - Created project structure
   - Added base config files
   - Self-review: All good
+  - Set review:pending
   - READY FOR REVIEW
 
 [Controller spot-checks — skeleton looks correct]
-[sessions_send(label: "impl-task-1", message: "APPROVED")]
-Implementer: Closed bead. Done.
-[Kill implementer session]
+[bd set-state <id> review=passed]
+[bd close <id>]
 
 Task 2: Recovery modes (COMPLEX — full review)
 
-[Spawn implementer: sessions_spawn(mode: "session", label: "impl-task-2")]
-Implementer: [No questions, proceeds]
+[Spawn implementer: sessions_spawn(mode: "run")]
 Implementer:
+  - Claimed bead
   - Added verify/repair modes
   - 8/8 tests passing
   - Self-review: All good
+  - Set review:pending
+  - Commit: abc1234
   - READY FOR REVIEW
 
+[Verify commit: git log --oneline | head -3 → abc1234 confirmed]
 [Spawn spec reviewer (mode: "run")]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 
-[sessions_send(label: "impl-task-2", message: spec findings)]
-Implementer: [Has full context — knows exactly what to fix]
+[bd set-state <id> review=failed --reason "spec: missing progress reporting, extra --json flag"]
+[Spawn fix implementer with findings baked into prompt]
+Fix implementer:
   - Removed --json flag
   - Added progress reporting
+  - Set review:pending
+  - Commit: def5678
   - READY FOR RE-REVIEW
 
 [Spawn spec reviewer again (mode: "run")]
-Spec reviewer: ✅ Spec compliant now
+Spec reviewer: ✅ Spec compliant
 
 [Spawn code quality reviewer (mode: "run")]
 Code reviewer: Issues (Important): Magic number (100)
 
-[sessions_send(label: "impl-task-2", message: quality findings)]
-Implementer: Extracted PROGRESS_INTERVAL constant
+[bd set-state <id> review=failed --reason "quality: magic number"]
+[Spawn fix implementer with quality findings]
+Fix implementer:
+  - Extracted PROGRESS_INTERVAL constant
+  - Set review:pending
+  - Commit: ghi9012
   - READY FOR RE-REVIEW
 
 [Spawn code quality reviewer again (mode: "run")]
 Code reviewer: ✅ Approved
 
-[sessions_send(label: "impl-task-2", message: "APPROVED")]
-Implementer: Closed bead. Done.
-
-[Kill implementer session]
+[bd set-state <id> review=passed]
+[bd close <id>]
 
 ...
 
@@ -236,39 +271,42 @@ Done!
 - Subagents follow TDD naturally
 - Fresh context per task (no confusion)
 - Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
+- External review gates prevent self-approved work
 
 **vs. Executing Plans:**
 - Same session (no handoff)
 - Continuous progress (no waiting)
 - Review checkpoints automatic
 
-**Persistent sessions (vs. one-shot implementers):**
-- Implementer keeps warm context for review fixes
-- No cold-start re-reading of codebase on fix iterations
-- Targeted fixes instead of guessing at previous agent's intent
-- Fewer tokens burned on context re-establishment
-- Natural back-and-forth between controller and implementer
+**Channel-agnostic (mode: "run"):**
+- Works on Slack, Discord, or any channel
+- No dependency on thread-bound persistent sessions
+- Simpler lifecycle — implementer runs, reports, exits
+
+**Review state dimensions:**
+- `review:pending/passed/failed` visible to any session via `bd state`
+- Beads never close prematurely (controller owns closure after review)
+- Session recovery is trivial — check bead status + review state
+- Full audit trail of review cycles
 
 **Efficiency gains:**
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
 - Simple tasks skip expensive review ceremony
 
 **Quality gates:**
 - Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
-- Review loops with warm-context fixes (not cold restarts)
+- External review gate: spec compliance, then code quality
+- Fix implementers get findings baked into prompt (targeted fixes)
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
 - Controller complexity assessment avoids ceremony on trivial tasks
 
 **Cost:**
-- More subagent invocations (implementer + up to 2 reviewers per complex task)
-- Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations (but with warm context, fewer iterations needed)
+- More subagent invocations on review failures (new fix implementer per cycle)
+- Fix implementers need to re-read code (no warm context)
+- Mitigated by: controller provides full context + specific findings in prompt
 - Simple tasks skip reviewers entirely (cost savings)
 - Catches issues early (cheaper than debugging later)
 
@@ -300,30 +338,26 @@ When an implementer subagent identifies code needing refactoring:
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review on complex tasks (both are needed)
+- Skip review loops (reviewer found issues = fix implementer = review again)
+- Let implementer self-review replace external review on complex tasks
 - **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
-- **Forget to kill implementer sessions after reviews pass** (clean up after yourself)
-- **Close beads from the controller** (implementer owns the bead lifecycle — it claims, it closes)
-- **Skip passing the bead ID to the implementer** (no bead ID = orphaned bead on session death)
-
-**If subagent asks questions:**
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
+- Move to next task while review has open issues
+- **Close the bead before external review passes** (controller owns closure)
+- **Skip passing the bead ID to the implementer** (no bead ID = orphaned state)
+- **Trust the implementer's report without verifying the commit exists**
 
 **If reviewer finds issues:**
-- Route findings to the still-alive implementer via `sessions_send`
-- Implementer fixes with full context (no cold start)
+- Controller sets `review=failed` on the bead
+- Spawn a new fix implementer with findings baked into the prompt
+- Fix implementer picks up the same bead, fixes, sets `review=pending`
 - Re-spawn reviewer to verify fixes
 - Repeat until approved
 - Don't skip the re-review
 
-**If subagent fails task:**
-- Send fix instructions to the persistent session first
-- Only dispatch a new subagent if the session is unrecoverable
-- Don't try to fix manually (context pollution)
+**If implementer fails or dies mid-task:**
+- Bead stays `in_progress` with no `review:pending` state
+- Controller can check `bd state <id> review` — absence of state means unfinished
+- Spawn a new implementer for the same bead
 
 ## Integration
 

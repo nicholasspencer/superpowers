@@ -2,11 +2,12 @@
 
 Use this template when dispatching an implementer subagent.
 
-**Key:** Implementers run as persistent sessions (`mode: "session"`) so they stay alive for review feedback. The controller kills them after reviews pass.
+**Key:** Implementers run as one-shot sessions (`mode: "run"`). They build, self-review, commit, set `review:pending`, and exit. They do NOT close the bead — the controller closes it after external review passes.
 
 ```
-sessions_spawn (runtime: "acp", mode: "session", label: "impl-task-N"):
+sessions_spawn (runtime: "acp", mode: "run"):
   description: "Implement Task N: [task name]"
+  cwd: "[working directory]"
   prompt: |
     You are implementing Task N: [task name]
 
@@ -34,27 +35,28 @@ sessions_spawn (runtime: "acp", mode: "session", label: "impl-task-N"):
 
     At the start of work, claim it:
     ```
-    bd claim [BEAD_ID]
+    bd update [BEAD_ID] --status=in_progress
     ```
 
-    After you receive "APPROVED" from the controller, close it:
+    After you finish and self-review, mark it ready for external review:
     ```
-    bd close [BEAD_ID]
+    bd set-state [BEAD_ID] review=pending
     ```
 
-    You own this bead's lifecycle. If the controller session dies,
-    the bead state should still be accurate.
+    **Do NOT close the bead.** The controller will close it after
+    an external reviewer verifies your work.
 
     ## Your Job
 
     Once you're clear on requirements:
-    1. Claim your bead (`bd claim [BEAD_ID]`)
+    1. Claim your bead (`bd update [BEAD_ID] --status=in_progress`)
     2. Implement exactly what the task specifies
     3. Write tests (following TDD if task says to)
     4. Verify implementation works
-    5. Commit your work
+    5. Commit your work (conventional commits)
     6. Self-review (see below)
-    7. Report back with "READY FOR REVIEW"
+    7. Set review state: `bd set-state [BEAD_ID] review=pending`
+    8. Report back with "READY FOR REVIEW"
 
     Work from: [directory]
 
@@ -93,30 +95,8 @@ sessions_spawn (runtime: "acp", mode: "session", label: "impl-task-N"):
     - What you implemented
     - What you tested and test results
     - Files changed
+    - Commit SHA
     - Self-review findings (if any)
     - Any issues or concerns
     - **End with: READY FOR REVIEW**
-
-    ## After Reporting: Stay Alive for Feedback
-
-    After your initial report, **do not exit**. Your session stays alive.
-    You may receive review findings from spec compliance or code quality reviewers.
-
-    When you receive review feedback:
-    1. Read the findings carefully
-    2. Fix every issue identified
-    3. Re-run tests to confirm nothing broke
-    4. Commit the fixes
-    5. Report what you fixed with "READY FOR RE-REVIEW"
-
-    When you receive "APPROVED":
-    1. Close your bead: `bd close [BEAD_ID]`
-    2. You're done — session will be cleaned up by the controller
-
-    You keep full context of your implementation — you know why you built
-    things the way you did. Use that context to make targeted fixes without
-    re-reading everything.
-
-    If a finding seems wrong or unclear, say so — explain your reasoning.
-    Don't blindly change things if the reviewer misunderstood your intent.
 ```
