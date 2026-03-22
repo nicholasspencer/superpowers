@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching persistent implementer sessions per task, with two-stage review after each: spec compliance first, then code quality. Implementers stay alive for review feedback — no cold-start fix agents.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Persistent implementer + one-shot reviewers + warm-context fix loop = high quality, fast iteration
 
 ## When to Use
 
@@ -31,7 +31,7 @@ digraph when_to_use {
 
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
-- Fresh subagent per task (no context pollution)
+- Persistent implementer per task (warm context for fixes)
 - Two-stage review after each task: spec compliance first, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
@@ -43,16 +43,19 @@ digraph process {
 
     subgraph cluster_per_task {
         label="Per Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
-        "Implementer subagent asks questions?" [shape=diamond];
-        "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
-        "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
-        "Implementer subagent fixes spec gaps" [shape=box];
-        "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
+        "Spawn implementer session (mode: session, label: impl-task-N)" [shape=box];
+        "Implementer asks questions?" [shape=diamond];
+        "Answer questions via sessions_send" [shape=box];
+        "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" [shape=box];
+        "Task complexity?" [shape=diamond];
+        "Controller spot-checks (skeleton/config tasks)" [shape=box];
+        "Spawn spec reviewer (mode: run)" [shape=box];
+        "Spec reviewer confirms code matches spec?" [shape=diamond];
+        "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" [shape=box];
+        "Spawn code quality reviewer (mode: run)" [shape=box];
+        "Code quality reviewer approves?" [shape=diamond];
+        "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" [shape=box];
+        "Kill implementer session" [shape=box];
         "Mark task complete" [shape=box];
     }
 
@@ -61,32 +64,76 @@ digraph process {
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
     "Follow finishing-a-development-branch skill" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, track tasks" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
-    "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
-    "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
-    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete" [label="yes"];
+    "Read plan, extract all tasks with full text, note context, track tasks" -> "Spawn implementer session (mode: session, label: impl-task-N)";
+    "Spawn implementer session (mode: session, label: impl-task-N)" -> "Implementer asks questions?";
+    "Implementer asks questions?" -> "Answer questions via sessions_send" [label="yes"];
+    "Answer questions via sessions_send" -> "Implementer asks questions?" [label="wait for response"];
+    "Implementer asks questions?" -> "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" [label="no"];
+    "Implementer builds, tests, commits, self-reviews, reports READY FOR REVIEW" -> "Task complexity?";
+    "Task complexity?" -> "Controller spot-checks (skeleton/config tasks)" [label="simple"];
+    "Task complexity?" -> "Spawn spec reviewer (mode: run)" [label="complex"];
+    "Controller spot-checks (skeleton/config tasks)" -> "Mark task complete";
+    "Spawn spec reviewer (mode: run)" -> "Spec reviewer confirms code matches spec?";
+    "Spec reviewer confirms code matches spec?" -> "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" [label="no"];
+    "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW" -> "Spawn spec reviewer (mode: run)" [label="re-review"];
+    "Spec reviewer confirms code matches spec?" -> "Spawn code quality reviewer (mode: run)" [label="yes"];
+    "Spawn code quality reviewer (mode: run)" -> "Code quality reviewer approves?";
+    "Code quality reviewer approves?" -> "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" [label="no"];
+    "sessions_send findings to implementer → fixes → READY FOR RE-REVIEW (quality)" -> "Spawn code quality reviewer (mode: run)" [label="re-review"];
+    "Code quality reviewer approves?" -> "Kill implementer session" [label="yes"];
+    "Kill implementer session" -> "Mark task complete";
     "Mark task complete" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
+    "More tasks remain?" -> "Spawn implementer session (mode: session, label: impl-task-N)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
     "Dispatch final code reviewer subagent for entire implementation" -> "Follow finishing-a-development-branch skill";
 }
 ```
 
+## Orchestration Flow (Controller)
+
+```
+1. Spawn implementer (mode: "session", label: "impl-task-N")
+2. Implementer builds, self-reviews, reports "READY FOR REVIEW"
+3. Assess task complexity:
+   - Simple (skeleton, config, boilerplate) → controller spot-checks, skip to step 7
+   - Complex (logic, integrations, algorithms) → continue to step 4
+4. Spawn spec reviewer (mode: "run") — reads actual code, returns findings
+5. If issues → sessions_send(label: "impl-task-N", message: findings)
+   → implementer fixes (warm context), reports "READY FOR RE-REVIEW"
+   → re-spawn spec reviewer → repeat until ✅
+6. Spawn code quality reviewer (mode: "run") → same loop if issues
+7. Both pass (or spot-check sufficient) → kill implementer session
+8. Mark task complete, move to next
+```
+
+**Why persistent sessions matter:** The implementer keeps its warm context — it knows the codebase, the task, the decisions it made. When review findings come in, it makes targeted fixes without re-reading everything or guessing at what a previous agent built.
+
+## Task Complexity Heuristics
+
+Not every task needs the full two-stage review ceremony. The controller should assess:
+
+**Simple tasks (spot-check sufficient):**
+- Project scaffolding / skeleton setup
+- Config file creation
+- Boilerplate / file structure
+- Dependency additions
+- Simple renames or moves
+
+**Complex tasks (full review required):**
+- Business logic implementation
+- Algorithm or data structure work
+- Integration with external systems
+- State management / concurrency
+- Security-sensitive code
+- Anything with more than trivial test coverage
+
+The controller is empowered to make this judgment call. When in doubt, run the full review.
+
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+- `./implementer-prompt.md` - Dispatch implementer subagent (persistent session)
+- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent (one-shot)
+- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent (one-shot)
 
 ## Example Workflow
 
@@ -97,62 +144,55 @@ You: I'm using Subagent-Driven Development to execute this plan.
 [Extract all 5 tasks with full text and context]
 [Track all tasks (beads if available, otherwise inline)]
 
-Task 1: Hook installation script
+Task 1: Project skeleton (SIMPLE — spot-check only)
 
-[Get Task 1 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
+[Spawn implementer: sessions_spawn(mode: "session", label: "impl-task-1")]
+Implementer: [No questions, proceeds]
+Implementer:
+  - Created project structure
+  - Added base config files
+  - Self-review: All good
+  - READY FOR REVIEW
 
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/superpowers/hooks/)"
-
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
-
-[Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
-
+[Controller spot-checks — skeleton looks correct]
+[Kill implementer session]
 [Mark Task 1 complete]
 
-Task 2: Recovery modes
+Task 2: Recovery modes (COMPLEX — full review)
 
-[Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
+[Spawn implementer: sessions_spawn(mode: "session", label: "impl-task-2")]
 Implementer: [No questions, proceeds]
 Implementer:
   - Added verify/repair modes
   - 8/8 tests passing
   - Self-review: All good
-  - Committed
+  - READY FOR REVIEW
 
-[Dispatch spec compliance reviewer]
+[Spawn spec reviewer (mode: "run")]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
   - Extra: Added --json flag (not requested)
 
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
+[sessions_send(label: "impl-task-2", message: spec findings)]
+Implementer: [Has full context — knows exactly what to fix]
+  - Removed --json flag
+  - Added progress reporting
+  - READY FOR RE-REVIEW
 
-[Spec reviewer reviews again]
+[Spawn spec reviewer again (mode: "run")]
 Spec reviewer: ✅ Spec compliant now
 
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
+[Spawn code quality reviewer (mode: "run")]
+Code reviewer: Issues (Important): Magic number (100)
 
-[Implementer fixes]
+[sessions_send(label: "impl-task-2", message: quality findings)]
 Implementer: Extracted PROGRESS_INTERVAL constant
+  - READY FOR RE-REVIEW
 
-[Code reviewer reviews again]
+[Spawn code quality reviewer again (mode: "run")]
 Code reviewer: ✅ Approved
 
+[Kill implementer session]
 [Mark Task 2 complete]
 
 ...
@@ -177,24 +217,34 @@ Done!
 - Continuous progress (no waiting)
 - Review checkpoints automatic
 
+**Persistent sessions (vs. one-shot implementers):**
+- Implementer keeps warm context for review fixes
+- No cold-start re-reading of codebase on fix iterations
+- Targeted fixes instead of guessing at previous agent's intent
+- Fewer tokens burned on context re-establishment
+- Natural back-and-forth between controller and implementer
+
 **Efficiency gains:**
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)
+- Simple tasks skip expensive review ceremony
 
 **Quality gates:**
 - Self-review catches issues before handoff
 - Two-stage review: spec compliance, then code quality
-- Review loops ensure fixes actually work
+- Review loops with warm-context fixes (not cold restarts)
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
+- Controller complexity assessment avoids ceremony on trivial tasks
 
 **Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
+- More subagent invocations (implementer + up to 2 reviewers per complex task)
 - Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations
-- But catches issues early (cheaper than debugging later)
+- Review loops add iterations (but with warm context, fewer iterations needed)
+- Simple tasks skip reviewers entirely (cost savings)
+- Catches issues early (cheaper than debugging later)
 
 ## Refactor Tracking (RCA Traceability)
 
@@ -218,17 +268,17 @@ When an implementer subagent identifies code needing refactoring:
 
 **Never:**
 - Start implementation on main/master branch without explicit user consent
-- Skip reviews (spec compliance OR code quality)
-- Proceed with unfixed issues
+- Proceed with unfixed issues on complex tasks
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review (both are needed)
+- Let implementer self-review replace actual review on complex tasks (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
+- **Forget to kill implementer sessions after reviews pass** (clean up after yourself)
 
 **If subagent asks questions:**
 - Answer clearly and completely
@@ -236,13 +286,15 @@ When an implementer subagent identifies code needing refactoring:
 - Don't rush them into implementation
 
 **If reviewer finds issues:**
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
+- Route findings to the still-alive implementer via `sessions_send`
+- Implementer fixes with full context (no cold start)
+- Re-spawn reviewer to verify fixes
 - Repeat until approved
 - Don't skip the re-review
 
 **If subagent fails task:**
-- Dispatch fix subagent with specific instructions
+- Send fix instructions to the persistent session first
+- Only dispatch a new subagent if the session is unrecoverable
 - Don't try to fix manually (context pollution)
 
 ## Integration
