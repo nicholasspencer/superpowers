@@ -109,7 +109,9 @@ digraph process {
 9. Move to next task
 ```
 
-## Bead Ownership
+## Bead Ownership & Orchestration State
+
+**Beads ARE the orchestration state.** No separate checkpoint files needed.
 
 **Rule: whoever claims the bead closes it.**
 
@@ -117,7 +119,15 @@ digraph process {
 - Controller passes bead ID to implementer in the task prompt
 - Implementer claims the bead (`bd claim`) at start of work
 - Implementer closes the bead (`bd close`) after receiving "APPROVED"
-- This ensures bead state survives controller session boundaries — if the controller dies/compacts between review and cleanup, the bead is still properly closed
+- This ensures bead state survives controller session boundaries
+
+**Session recovery:** If the controller session dies/compacts mid-epic, any new session can pick up where things left off:
+```bash
+bd list                           # see what's done, in-progress, and open
+bd list --status=open             # find next tasks to dispatch
+bd children <epic_id>             # see full task breakdown
+```
+The beads backlog tells you everything: what's closed (done), what's claimed (in-progress), what's open with resolved deps (ready to dispatch). No orchestration memory needed beyond `bd list`.
 
 **Why persistent sessions matter:** The implementer keeps its warm context — it knows the codebase, the task, the decisions it made. When review findings come in, it makes targeted fixes without re-reading everything or guessing at what a previous agent built.
 
