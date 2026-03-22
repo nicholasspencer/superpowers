@@ -28,15 +28,33 @@ sessions_spawn (runtime: "acp", mode: "session", label: "impl-task-N"):
 
     **Ask them now.** Raise any concerns before starting work.
 
+    ## Bead Tracking
+
+    Your bead ID: [BEAD_ID]
+
+    At the start of work, claim it:
+    ```
+    bd claim [BEAD_ID]
+    ```
+
+    After you receive "APPROVED" from the controller, close it:
+    ```
+    bd close [BEAD_ID]
+    ```
+
+    You own this bead's lifecycle. If the controller session dies,
+    the bead state should still be accurate.
+
     ## Your Job
 
     Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back with "READY FOR REVIEW"
+    1. Claim your bead (`bd claim [BEAD_ID]`)
+    2. Implement exactly what the task specifies
+    3. Write tests (following TDD if task says to)
+    4. Verify implementation works
+    5. Commit your work
+    6. Self-review (see below)
+    7. Report back with "READY FOR REVIEW"
 
     Work from: [directory]
 
@@ -90,6 +108,10 @@ sessions_spawn (runtime: "acp", mode: "session", label: "impl-task-N"):
     3. Re-run tests to confirm nothing broke
     4. Commit the fixes
     5. Report what you fixed with "READY FOR RE-REVIEW"
+
+    When you receive "APPROVED":
+    1. Close your bead: `bd close [BEAD_ID]`
+    2. You're done — session will be cleaned up by the controller
 
     You keep full context of your implementation — you know why you built
     things the way you did. Use that context to make targeted fixes without

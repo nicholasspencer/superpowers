@@ -92,19 +92,32 @@ digraph process {
 ## Orchestration Flow (Controller)
 
 ```
-1. Spawn implementer (mode: "session", label: "impl-task-N")
-2. Implementer builds, self-reviews, reports "READY FOR REVIEW"
-3. Assess task complexity:
-   - Simple (skeleton, config, boilerplate) → controller spot-checks, skip to step 7
-   - Complex (logic, integrations, algorithms) → continue to step 4
-4. Spawn spec reviewer (mode: "run") — reads actual code, returns findings
-5. If issues → sessions_send(label: "impl-task-N", message: findings)
+1. Controller creates bead for task (if not already created from plan)
+2. Spawn implementer (mode: "session", label: "impl-task-N")
+   — pass bead ID in prompt so implementer can claim + close it
+3. Implementer claims bead, builds, self-reviews, reports "READY FOR REVIEW"
+4. Assess task complexity:
+   - Simple (skeleton, config, boilerplate) → controller spot-checks, skip to step 8
+   - Complex (logic, integrations, algorithms) → continue to step 5
+5. Spawn spec reviewer (mode: "run") — reads actual code, returns findings
+6. If issues → sessions_send(label: "impl-task-N", message: findings)
    → implementer fixes (warm context), reports "READY FOR RE-REVIEW"
    → re-spawn spec reviewer → repeat until ✅
-6. Spawn code quality reviewer (mode: "run") → same loop if issues
-7. Both pass (or spot-check sufficient) → kill implementer session
-8. Mark task complete, move to next
+7. Spawn code quality reviewer (mode: "run") → same loop if issues
+8. Both pass (or spot-check sufficient) → tell implementer "APPROVED"
+   → implementer closes its bead, controller kills the session
+9. Move to next task
 ```
+
+## Bead Ownership
+
+**Rule: whoever claims the bead closes it.**
+
+- Controller creates beads from the plan (has full plan context)
+- Controller passes bead ID to implementer in the task prompt
+- Implementer claims the bead (`bd claim`) at start of work
+- Implementer closes the bead (`bd close`) after receiving "APPROVED"
+- This ensures bead state survives controller session boundaries — if the controller dies/compacts between review and cleanup, the bead is still properly closed
 
 **Why persistent sessions matter:** The implementer keeps its warm context — it knows the codebase, the task, the decisions it made. When review findings come in, it makes targeted fixes without re-reading everything or guessing at what a previous agent built.
 
@@ -155,8 +168,9 @@ Implementer:
   - READY FOR REVIEW
 
 [Controller spot-checks — skeleton looks correct]
+[sessions_send(label: "impl-task-1", message: "APPROVED")]
+Implementer: Closed bead. Done.
 [Kill implementer session]
-[Mark Task 1 complete]
 
 Task 2: Recovery modes (COMPLEX — full review)
 
@@ -192,8 +206,10 @@ Implementer: Extracted PROGRESS_INTERVAL constant
 [Spawn code quality reviewer again (mode: "run")]
 Code reviewer: ✅ Approved
 
+[sessions_send(label: "impl-task-2", message: "APPROVED")]
+Implementer: Closed bead. Done.
+
 [Kill implementer session]
-[Mark Task 2 complete]
 
 ...
 
@@ -279,6 +295,8 @@ When an implementer subagent identifies code needing refactoring:
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
 - **Forget to kill implementer sessions after reviews pass** (clean up after yourself)
+- **Close beads from the controller** (implementer owns the bead lifecycle — it claims, it closes)
+- **Skip passing the bead ID to the implementer** (no bead ID = orphaned bead on session death)
 
 **If subagent asks questions:**
 - Answer clearly and completely
